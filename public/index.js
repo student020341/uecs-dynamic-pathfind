@@ -26,7 +26,3 @@ dom.step.addEventListener("click", () => {
 
 // play
 game.loop();
-
-// uecs: https://jprochazk.github.io/uecs/
-// a*: https://medium.com/@nicholas.w.swift/easy-a-star-pathfinding-7e6689c7f7b2
-// intersection: https://github.com/davidfig/intersects

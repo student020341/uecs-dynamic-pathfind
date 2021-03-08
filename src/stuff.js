@@ -1,13 +1,13 @@
-import { World, Tag } from "uecs";
+import { World } from "uecs";
 
 // components
 import {
-  EntBox, MoveSteps
+  EntBox
 } from "@app/components";
 
 // systems
 import {
-  renderBoxes, setSteps, PathNode, traverseSteps
+  renderBoxes
 } from "@app/systems";
 import Vector from "@app/util/Vector";
 
@@ -40,39 +40,13 @@ export default class Game {
         y: ev.clientY - rect.top,
       };
 
-      setSteps(this.world, mousePos);
+      //
     });
   }
 
   // set up / seed world
   createEntities() {
-    this.world.create(new EntBox(50, 10, 10, 10), new MoveSteps);
-
-    for (let x = 0;x < 5;x++) {
-      const xOffset = 20 + x*30;
-      for (let y = 0;y < 5;y++) {
-        const yOffset = 100 + y*30;
-        this.world.create(new EntBox(xOffset, yOffset, 10, 10));
-      }
-    }
-
-    // non uniform x shape
-    this.world.create(new EntBox(300, 200, 200, 10));
-    this.world.create(new EntBox(350, 100, 40, 200));
-
-    // hollow plus shape
-    // left horizontal bars
-    this.world.create(new EntBox(20, 400, 130, 10));
-    this.world.create(new EntBox(20, 440, 130, 10));
-    // right horizontal bars
-    this.world.create(new EntBox(200, 400, 130, 10));
-    this.world.create(new EntBox(200, 440, 130, 10));
-    // top vertical bars
-    this.world.create(new EntBox(150, 280, 10, 130));
-    this.world.create(new EntBox(190, 280, 10, 130));
-    // bottom vertical bars
-    this.world.create(new EntBox(150, 440, 10, 130));
-    this.world.create(new EntBox(190, 440, 10, 130));
+    this.world.create(new EntBox(50, 10, 10, 10));
   }
 
   setRunning(next = true) {
@@ -89,7 +63,7 @@ export default class Game {
   }
 
   logicStep(dt) {
-    traverseSteps(this.world, dt);
+    //
   }
 
   async loop() {

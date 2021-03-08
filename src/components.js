@@ -19,15 +19,3 @@ export class EntBox {
     this.h = h;
   }
 }
-
-/**
- * a series of steps to move an object
- */
-export class MoveSteps {
-  /**
-   * @param {Array<Vector>} steps 
-   */
-  constructor(steps = []) {
-    this.steps = steps;
-  }
-}
