@@ -1,15 +1,19 @@
 import { World } from "uecs";
 
+import * as qECS from "@app/util/EQuery";
+
 // components
 import {
-  EntBox
+  Animator,
+  Body
 } from "@app/components";
 
 // systems
 import {
-  renderBoxes
+  render, reOrigin, animate
 } from "@app/systems";
 import Vector from "@app/util/Vector";
+import rInfo from "@app/util/renderinfo";
 
 export default class Game {
   /**
@@ -18,7 +22,7 @@ export default class Game {
    */
   constructor(canvas) {
     this.world = new World();
-    this.running = false;
+    this.running = true;
     this.doStep = false;
     /** @type {HTMLCanvasElement} */
     this.canvas = canvas;
@@ -39,14 +43,19 @@ export default class Game {
         x: ev.clientX - rect.left,
         y: ev.clientY - rect.top,
       };
-
-      //
+      const {space} = rInfo;
+      const x = Math.floor(mousePos.x / space);
+      const y = Math.floor(mousePos.y / space);
+      console.log(`(${x},${y})`);
+      reOrigin(this.world);
     });
   }
 
   // set up / seed world
   createEntities() {
-    this.world.create(new EntBox(50, 10, 10, 10));
+    // start with 1 spot between player and enemy
+    this.world.create(new Body(new Vector(-1, 0)), new Animator);
+    this.world.create(new Body(new Vector(1, 0)), new Animator);
   }
 
   setRunning(next = true) {
@@ -59,11 +68,12 @@ export default class Game {
 
   renderStep() {
     this.ctx.clearRect(0, 0, 800, 600);
-    renderBoxes(this.world, this.ctx);
+    render(this.world, this.ctx, this.grid);
   }
 
   logicStep(dt) {
     //
+    animate(this.world, dt);
   }
 
   async loop() {

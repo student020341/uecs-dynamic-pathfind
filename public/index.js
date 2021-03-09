@@ -18,6 +18,7 @@ dom.pause.addEventListener("click", () => {
   game.setRunning(!game.running);
   dom.pause.innerText = game.running ? "Pause" : "Play";
 });
+dom.pause.innerText = game.running ? "Pause" : "Play";
 
 // step - play 1 iteration and then pause
 dom.step.addEventListener("click", () => {

@@ -1,21 +1,25 @@
-
+import {World} from "uecs";
 import Vector from "@app/util/Vector";
 
-/**
- * a bounding box for basic rendering and collision
- */
-export class EntBox {
+export class Body {
   /**
    * 
-   * @param {number} x x position
-   * @param {number} y y position
-   * @param {number} w width
-   * @param {number} h height
+   * @param {Vector} position 
    */
-  constructor(x, y, w, h) {
-    this.x = x;
-    this.y = y;
-    this.w = w;
-    this.h = h;
+  constructor(position) {
+    this.position = position;
   }
+}
+
+// mutate body position over time
+export class Animator {
+  // todo: investigate why this seems innacurate
+  /** @type {number} seconds for change to occur over */
+  goal = 2;
+  /** @type {number} accumulated time */
+  progress = 0;
+  /** @type {boolean} whether  */
+  shouldAnimate = false;
+  /** @type {Vector} target to animate towards */
+  target = new Vector(0, 0);
 }
