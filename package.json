@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "intersects": "^2.7.2",
+    "nanoevents": "^5.1.12",
     "uecs": "^0.2.7"
   }
 }

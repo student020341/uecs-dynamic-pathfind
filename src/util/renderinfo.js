@@ -4,4 +4,6 @@ class RenderInfo {
   space = 40;
 }
 
-export default new RenderInfo;
+const info = new RenderInfo;
+
+export default info;

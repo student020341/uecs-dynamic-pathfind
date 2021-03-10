@@ -1,19 +1,21 @@
-import { World } from "uecs";
+import { World, Tag } from "uecs";
 
 import * as qECS from "@app/util/EQuery";
 
 // components
-import {
-  Animator,
-  Body
-} from "@app/components";
+import { Animator, Body, Tile } from "@app/components";
 
 // systems
 import {
-  render, reOrigin, animate
+  render,
+  reOrigin,
+  animate,
+  createTiles,
+  selectTile,
 } from "@app/systems";
 import Vector from "@app/util/Vector";
 import rInfo from "@app/util/renderinfo";
+import gameEvents from "@app/util/events";
 
 export default class Game {
   /**
@@ -29,6 +31,13 @@ export default class Game {
     /** @type {CanvasRenderingContext2D} */
     this.ctx = this.canvas.getContext("2d");
 
+    // some animator is running
+    this.animating = false;
+
+    // tiles for selecting stuff
+    /** @type {Array<Tile>} */
+    this.tiles = [];
+
     // canvas events and things
     this.doEvents();
 
@@ -40,22 +49,42 @@ export default class Game {
     this.canvas.addEventListener("click", (ev) => {
       const rect = ev.target.getBoundingClientRect();
       const mousePos = {
-        x: ev.clientX - rect.left,
-        y: ev.clientY - rect.top,
+        x: ev.clientX - rect.left - rect.width / 2,
+        y: ev.clientY - rect.top - rect.height / 2,
       };
-      const {space} = rInfo;
+      const { space } = rInfo;
       const x = Math.floor(mousePos.x / space);
       const y = Math.floor(mousePos.y / space);
       console.log(`(${x},${y})`);
-      reOrigin(this.world);
+      selectTile(this.world, x, y);
+    });
+
+    // animator event
+    gameEvents.on("animatorFinish", () => {
+      createTiles(this.world);
+    });
+
+    // tile / move select event
+    gameEvents.on("selectTile", () => {
+      this.animating = true;
     });
   }
 
   // set up / seed world
   createEntities() {
     // start with 1 spot between player and enemy
-    this.world.create(new Body(new Vector(-1, 0)), new Animator);
-    this.world.create(new Body(new Vector(1, 0)), new Animator);
+    this.world.create(
+      new Body(new Vector(-1, 0)),
+      new Animator(),
+      Tag.for("player")
+    );
+    this.world.create(
+      new Body(new Vector(1, 0)),
+      new Animator(),
+      Tag.for("chicken")
+    );
+
+    reOrigin(this);
   }
 
   setRunning(next = true) {
@@ -68,12 +97,14 @@ export default class Game {
 
   renderStep() {
     this.ctx.clearRect(0, 0, 800, 600);
-    render(this.world, this.ctx, this.grid);
+    render(this);
   }
 
   logicStep(dt) {
     //
-    animate(this.world, dt);
+    if (this.animating) {
+      animate(this, dt);
+    }
   }
 
   async loop() {
