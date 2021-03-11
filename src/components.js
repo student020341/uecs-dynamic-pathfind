@@ -6,9 +6,11 @@ export class Body {
   /**
    * 
    * @param {Vector} position 
+   * @param {string} color
    */
-  constructor(position) {
+  constructor(position, color) {
     this.position = position;
+    this.color = color;
   }
 }
 
@@ -25,6 +27,8 @@ export class Tile {
 
 // mutate body position over time
 export class Animator {
+  /** @type {string} a possible source of animation, ex: game did something (re-origin), player did something (moved) */
+  source = "player";
   /** @type {number} seconds for change to occur over */
   goal = 0.5;
   /** @type {number} accumulated time */

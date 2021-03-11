@@ -38,6 +38,9 @@ export default class Game {
     /** @type {Array<Tile>} */
     this.tiles = [];
 
+    this.reOrgTurnLimit = 3;
+    this.untilReorg = this.reOrgTurnLimit;
+
     // canvas events and things
     this.doEvents();
 
@@ -56,17 +59,24 @@ export default class Game {
       const x = Math.floor(mousePos.x / space);
       const y = Math.floor(mousePos.y / space);
       console.log(`(${x},${y})`);
-      selectTile(this.world, x, y);
+      if (!this.animating) {
+        selectTile(this.world, x, y);
+      }
     });
 
     // animator event
-    gameEvents.on("animatorFinish", () => {
+    gameEvents.on("animatorFinish", (events) => {
       createTiles(this.world);
+      if (this.untilReorg < 1) {
+        this.untilReorg = this.reOrgTurnLimit;
+        reOrigin(this);
+      }
     });
 
     // tile / move select event
     gameEvents.on("selectTile", () => {
       this.animating = true;
+      this.untilReorg--;
     });
   }
 
@@ -74,12 +84,13 @@ export default class Game {
   createEntities() {
     // start with 1 spot between player and enemy
     this.world.create(
-      new Body(new Vector(-1, 0)),
+      new Body(new Vector(-1, 0), "blue"),
       new Animator(),
       Tag.for("player")
     );
+
     this.world.create(
-      new Body(new Vector(1, 0)),
+      new Body(new Vector(1, 0), "red"),
       new Animator(),
       Tag.for("chicken")
     );

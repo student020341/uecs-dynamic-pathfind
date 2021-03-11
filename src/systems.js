@@ -22,10 +22,24 @@ export const render = (game) => {
   const offsetY = 300;
   const {world, ctx} = game;
   const {space} = rInfo;
-  world.view(Body).each((_, body) => {
+  const oldFill = ctx.fillStyle;
+  world.view(Body).each((_ent, body) => {
     const {x, y} = body.position;
-    ctx.strokeRect(offsetX + x * space, offsetY +  y * space, 10, 10);
+    const cx = offsetX + x * space + 15;
+    const cy = offsetY + y * space + 15;
+    ctx.strokeRect(cx, cy, 10, 10);
+    ctx.fillStyle = body.color;
+    ctx.fillRect(cx+1, cy+1, 9, 9);
+
+    const animator = world.get(_ent, Animator);
+    if (animator && animator.source === "re-origin") {
+      ctx.beginPath();
+      ctx.arc(offsetX + x * space + (space/2), offsetY + y * space + (space/2), 20, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   });
+  // restore fill
+  ctx.fillStyle = oldFill;
 
   // temp
   // const xw = 800 / space;
@@ -37,9 +51,14 @@ export const render = (game) => {
   // }
 
   // get view of tiles
-  world.view(Tile).each((_, tile) => {
-    ctx.strokeRect(offsetX + tile.position.x * space, offsetY + tile.position.y * space, space, space);
-  });
+  if (!game.animating) {
+    world.view(Tile).each((_, tile) => {
+      const cx = offsetX + tile.position.x * space;
+      const cy = offsetY + tile.position.y * space;
+      ctx.strokeRect(cx, cy, space, space);
+      ctx.strokeText(`(${tile.position.x},${tile.position.y})`, cx+2, cy+12);
+    });
+  }
 };
 
 /**
@@ -48,6 +67,7 @@ export const render = (game) => {
  * @param {Game} game
  */
 export const reOrigin = (game) => {
+  game.doingReorigin = true;
   game.animating = true;
   const world = game.world;
   const bodyView = world.view(Body, Animator);
@@ -82,10 +102,12 @@ export const reOrigin = (game) => {
   }
 
   bodyView.each((_, body, animator) => {
+    animator.source = "re-origin";
     animator.start = body.position;
     animator.target = body.position.fromAdd(ldiff);
     animator.shouldAnimate = true;
     animator.progress = 0;
+    animator.goal = 0.2;
   });
 }
 
@@ -97,10 +119,15 @@ export const reOrigin = (game) => {
 export const animate = (game, dt) => {
   const world = game.world;
   let anyAnimating = false;
+  // collect active animator events so we can respond to 
+  // particular things finishing, like re-origin
+  let animEvents = new Set();
   world.view(Body, Animator).each((_, body, animator) => {
     if (!animator.shouldAnimate) {
       return;
     }
+
+    animEvents.add(animator.source);
     
     animator.progress = clamp(animator.progress + dt, 0, animator.goal);
     const percent = clamp(animator.progress / animator.goal, 0, 1);
@@ -114,12 +141,16 @@ export const animate = (game, dt) => {
     animator.shouldAnimate = percent !== 1;
     if (animator.shouldAnimate) {
       anyAnimating = true;
+    } else {
+      // done animating
+      animator.source = "";
+      animator.progress = 0;
     }
   });
 
   if (game.animating && !anyAnimating) {
     game.animating = false;
-    gameEvents.emit("animatorFinish");
+    gameEvents.emit("animatorFinish", Array.from(animEvents));
   }
 };
 
@@ -128,46 +159,24 @@ export const animate = (game, dt) => {
  * @param {World} world 
  */
 export const createTiles = (world) => {
-  const [player] = qECS.query(world, Body, Tag.for("player"));
   const [chicken] = qECS.query(world, Body, Tag.for("chicken"));
 
-  const playerBody = player[1];
   const chickenBody = chicken[1];
-  const diff = playerBody.position.fromSub(chickenBody.position);
-  console.log(`player to chicken diff: ${diff}`);
+  const {position: pos} = chickenBody;
   
-  // todo: reduce
-  let left, right, up, down;
-  let xDir = Math.sign(diff.x);
-  let yDir = Math.sign(diff.y);
-  // player left of chicken
-  if (xDir > 0) {
-    right = diff.x - 1;
-    left = 2 - right;
-  } else if (xDir < 0) {
-    // player right of chicken
-    left = Math.abs(diff.x) - 1;
-    right = 2 - left;
-  } else {
-    // player above or below chicken
-    left = 2;
-    right = 2;
-  }
+  const leftMost = pos.x - 3;
+  const topMost = pos.y - 2;
+  const bottomMost = pos.y + 3;
 
   // remove old tiles
   world.view(Tile).each((ent, _tile) => {
     world.destroy(ent);
   });
 
-  // add new tiles
-  if (left !== 0) {
-    for(let i = 0;i < left;i++) {
-      world.create(new Tile(playerBody.position.clone().sub(1 + i, 0)));
-    }
-  }
-  if (right !== 0) {
-    for (let i = 0;i < right;i++) {
-      world.create(new Tile(playerBody.position.clone().add(i + 1, 0)));
+  // create new tiles
+  for (let x = leftMost;x < pos.x; x++) {
+    for (let y = topMost;y < bottomMost; y++) {
+      world.create(new Tile(new Vector(x, y)));
     }
   }
 }
@@ -181,6 +190,7 @@ export const createTiles = (world) => {
 export const selectTile = (world, x, y) => {
   const [tile] = qECS.filter(world, (_, _tile) => _tile.position.x === x && _tile.position.y === y, Tile);
   if (tile) {
+    // player selects tile
     /** @type {Tile} */
     const c = tile[1];
     const [playerEnt] = qECS.query(world, Animator, Body, Tag.for("player"));
@@ -193,6 +203,22 @@ export const selectTile = (world, x, y) => {
     playerAnimator.start = playerBody.position;
     playerAnimator.target = c.position;
     playerAnimator.shouldAnimate = true;
+    playerAnimator.source = "selectTile";
+    playerAnimator.goal = 0.6;
+
+    // also have chicken select tile
+    const [chickenEnt] = qECS.query(world, Animator, Body, Tag.for("chicken"));
+    /** @type {Animator} */
+    const chickenAnimator = chickenEnt[1];
+    chickenAnimator.progress = 0;
+    chickenAnimator.start = chickenEnt[2].position;
+    chickenAnimator.target = chickenEnt[2].position.clone().add(new Vector(
+      Math.round(Math.random() * 2 - 1),
+      Math.round(Math.random() * 2 - 1)
+    ));
+    chickenAnimator.shouldAnimate = true;
+    chickenAnimator.source = "selectTile";
+    chickenAnimator.goal = 0.6;
     
     gameEvents.emit("selectTile");
   }
