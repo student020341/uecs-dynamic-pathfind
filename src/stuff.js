@@ -3,15 +3,12 @@ import { World, Tag } from "uecs";
 import * as qECS from "@app/util/EQuery";
 
 // components
-import { Animator, Body, Tile } from "@app/components";
+import { Animator, Body } from "@app/components";
 
 // systems
 import {
   render,
-  reOrigin,
   animate,
-  createTiles,
-  selectTile,
 } from "@app/systems";
 import Vector from "@app/util/Vector";
 import rInfo from "@app/util/renderinfo";
@@ -31,15 +28,12 @@ export default class Game {
     /** @type {CanvasRenderingContext2D} */
     this.ctx = this.canvas.getContext("2d");
 
+    // display grid based on render info space
+    this.showGrid = true;
+
     // some animator is running
+    // this is an optimization so certain functions aren't always running if there are no active animators
     this.animating = false;
-
-    // tiles for selecting stuff
-    /** @type {Array<Tile>} */
-    this.tiles = [];
-
-    this.reOrgTurnLimit = 3;
-    this.untilReorg = this.reOrgTurnLimit;
 
     // canvas events and things
     this.doEvents();
@@ -51,51 +45,52 @@ export default class Game {
     // click canvas
     this.canvas.addEventListener("click", (ev) => {
       const rect = ev.target.getBoundingClientRect();
+      // mouse point inside of canvas
       const mousePos = {
-        x: ev.clientX - rect.left - rect.width / 2,
-        y: ev.clientY - rect.top - rect.height / 2,
+        x: ev.clientX - rect.left,
+        y: ev.clientY - rect.top,
       };
+      // mouse point constrained to a sort of grid
       const { space } = rInfo;
       const x = Math.floor(mousePos.x / space);
       const y = Math.floor(mousePos.y / space);
-      console.log(`(${x},${y})`);
-      if (!this.animating) {
-        selectTile(this.world, x, y);
-      }
+      console.log(`mouse event exact (${new Vector(mousePos.x, mousePos.y)}) | rInfo space (${x},${y})`);
     });
 
-    // animator event
+    // animator event, event example
     gameEvents.on("animatorFinish", (events) => {
-      createTiles(this.world);
-      if (this.untilReorg < 1) {
-        this.untilReorg = this.reOrgTurnLimit;
-        reOrigin(this);
-      }
-    });
-
-    // tile / move select event
-    gameEvents.on("selectTile", () => {
+      console.log("animation completed\n", events);
+      // query the ecs world for our player animator
+      const [player] = qECS.query(this.world, Animator, Body, Tag.for("player"));
+      // items are returned in the positional order of their specification +1 (entity id at 0), just like world.view
+      /** @type {Animator} */
+      const pAnimator = player[1];
+      /** @type {Vector} */
+      const position = player[2].position;
+      pAnimator.setAnimation(
+        position.x == 2 ? 0.5 : 1, // go left in half a second
+        position,
+        position.x == 2 ? new Vector(1, 1) : new Vector(2, 1) // animate character left and right
+      );
+      pAnimator.source = position.x == 2 ? "moving left" : "moving right";
+      // this could be managed better, see declaration for details
       this.animating = true;
-      this.untilReorg--;
     });
   }
 
   // set up / seed world
   createEntities() {
     // start with 1 spot between player and enemy
-    this.world.create(
-      new Body(new Vector(-1, 0), "blue"),
+    const test = this.world.create(
+      new Body(new Vector(1, 1), "blue"),
       new Animator(),
       Tag.for("player")
     );
 
-    this.world.create(
-      new Body(new Vector(1, 0), "red"),
-      new Animator(),
-      Tag.for("chicken")
-    );
-
-    reOrigin(this);
+    // move entity to the right over 1 second
+    const animator = this.world.get(test, Animator);
+    animator.setAnimation(1, new Vector(1, 1), new Vector(2, 1));
+    this.animating = true;
   }
 
   setRunning(next = true) {
@@ -130,7 +125,7 @@ export default class Game {
             return;
           }
 
-          // time delta
+          // time delta in seconds
           let dt = (t1 - t2) / 1000;
           // do not interpolate latency greater than 1 second
           if (dt > 1) {

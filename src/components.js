@@ -1,4 +1,3 @@
-import {World} from "uecs";
 import Vector from "@app/util/Vector";
 
 // object of moving thing / player
@@ -11,17 +10,6 @@ export class Body {
   constructor(position, color) {
     this.position = position;
     this.color = color;
-  }
-}
-
-// object of tile vis / interaction
-export class Tile {
-  /**
-   * 
-   * @param {Vector} position 
-   */
-  constructor(position) {
-    this.position = position;
   }
 }
 
@@ -39,4 +27,18 @@ export class Animator {
   target = new Vector(0, 0);
   /** @type {Vector} original position */
   start = new Vector(0, 0);
+
+  /**
+   * 
+   * @param {number} goal animation time in seconds
+   * @param {Vector} start starting vector of body
+   * @param {Vector} target target vector for body
+   */
+  setAnimation(goal, start, target) {
+    this.progress = 0;
+    this.shouldAnimate = true;
+    this.goal = goal;
+    this.start = start;
+    this.target = target;
+  }
 }
