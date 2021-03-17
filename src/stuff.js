@@ -3,23 +3,25 @@ import { World, Tag } from "uecs";
 import * as qECS from "@app/util/EQuery";
 
 // components
-import { Animator, Body } from "@app/components";
+import { Animator, Box, Scrollable, Sprite } from "@app/components";
 
 // systems
-import {
-  render,
-  animate,
-} from "@app/systems";
+import { render, animate, scroll } from "@app/systems";
 import Vector from "@app/util/Vector";
 import rInfo from "@app/util/renderinfo";
 import gameEvents from "@app/util/events";
+import { clamp } from "./util/Interp";
+import SpriteSheetData from "@app/util/SpriteSheet";
 
 export default class Game {
   /**
    *
    * @param {HTMLCanvasElement} canvas
+   * @param {Array<HTMLImageElement>} resources
    */
-  constructor(canvas) {
+  constructor(canvas, resources, stats) {
+    // ref to node for misc display below canvas
+    this.statsNode = stats;
     this.world = new World();
     this.running = true;
     this.doStep = false;
@@ -28,17 +30,56 @@ export default class Game {
     /** @type {CanvasRenderingContext2D} */
     this.ctx = this.canvas.getContext("2d");
 
+    // images loaded in the index page
+    this.resources = resources;
+
     // display grid based on render info space
-    this.showGrid = true;
+    this.showGrid = false;
 
     // some animator is running
     // this is an optimization so certain functions aren't always running if there are no active animators
-    this.animating = false;
+    this.animating = true;
+
+    /** @type {Object.<string, SpriteSheetData>} */
+    this.spriteData = {};
+    this.setupSpriteData();
 
     // canvas events and things
     this.doEvents();
 
     this.createEntities();
+  }
+
+  setupSpriteData() {
+    // food
+    const foodSpriteData = new SpriteSheetData(16, 16, 8, 8);
+    foodSpriteData.registerAnimation("cookie", 0, 0);
+    this.spriteData["food"] = foodSpriteData;
+
+    // env
+    const envSpriteData = new SpriteSheetData(32, 32, 6, 8);
+    [
+      ["grass", 0],
+      ["mushroom", 1],
+      ["flower", 2],
+      ["rock", 3],
+      ["grass_1", 6],
+      ["grass_2", 7],
+      ["grass_3", 8],
+      ["dirt_1", 12],
+      ["dirt_2", 13],
+      ["dirt_3", 14],
+    ].forEach((arr) => {
+      envSpriteData.regsiterSprite(...arr);
+    });
+    this.spriteData["env"] = envSpriteData;
+
+    // player
+    const playerSpriteData = new SpriteSheetData(50, 37, 7, 16);
+    playerSpriteData.registerAnimation("idle", 0, 3);
+    playerSpriteData.registerAnimation("sneak", 4, 7);
+    playerSpriteData.registerAnimation("run", 8, 13);
+    this.spriteData["player"] = playerSpriteData;
   }
 
   doEvents() {
@@ -54,43 +95,42 @@ export default class Game {
       const { space } = rInfo;
       const x = Math.floor(mousePos.x / space);
       const y = Math.floor(mousePos.y / space);
-      console.log(`mouse event exact (${new Vector(mousePos.x, mousePos.y)}) | rInfo space (${x},${y})`);
-    });
-
-    // animator event, event example
-    gameEvents.on("animatorFinish", (events) => {
-      console.log("animation completed\n", events);
-      // query the ecs world for our player animator
-      const [player] = qECS.query(this.world, Animator, Body, Tag.for("player"));
-      // items are returned in the positional order of their specification +1 (entity id at 0), just like world.view
-      /** @type {Animator} */
-      const pAnimator = player[1];
-      /** @type {Vector} */
-      const position = player[2].position;
-      pAnimator.setAnimation(
-        position.x == 2 ? 0.5 : 1, // go left in half a second
-        position,
-        position.x == 2 ? new Vector(1, 1) : new Vector(2, 1) // animate character left and right
+      console.log(
+        `mouse event exact (${new Vector(
+          mousePos.x,
+          mousePos.y
+        )}) | rInfo space (${x},${y})`
       );
-      pAnimator.source = position.x == 2 ? "moving left" : "moving right";
-      // this could be managed better, see declaration for details
-      this.animating = true;
     });
   }
 
   // set up / seed world
   createEntities() {
-    // start with 1 spot between player and enemy
-    const test = this.world.create(
-      new Body(new Vector(1, 1), "blue"),
-      new Animator(),
-      Tag.for("player")
+    // food
+    this.world.create(
+      new Box(10, 10, 16, 16),
+      new Sprite(this.resources[1], -1, this.spriteData["food"])
     );
 
-    // move entity to the right over 1 second
-    const animator = this.world.get(test, Animator);
-    animator.setAnimation(1, new Vector(1, 1), new Vector(2, 1));
-    this.animating = true;
+    // player
+    this.world.create(
+      new Box(50, 500, 50, 37),
+      new Sprite(this.resources[0], 1 / 6, this.spriteData["player"], "run")
+    );
+
+    // environment
+    for (let i = 0; i < 26; i++) {
+      this.world.create(
+        new Box(i * 32, 600 - 64, 32, 32),
+        new Sprite(this.resources[2], -1, this.spriteData["env"], "grass_2"),
+        new Scrollable(16, false, "ground")
+      );
+      this.world.create(
+        new Box(i * 32, 600 - 32, 32, 32),
+        new Sprite(this.resources[2], -1, this.spriteData["env"], "dirt_2"),
+        new Scrollable(16, false, "ground")
+      );
+    }
   }
 
   setRunning(next = true) {
@@ -110,6 +150,7 @@ export default class Game {
     //
     if (this.animating) {
       animate(this, dt);
+      scroll(this, dt);
     }
   }
 

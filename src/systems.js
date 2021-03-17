@@ -1,88 +1,94 @@
 import intBox from "intersects/box";
 
-import {Animator, Body} from "@app/components";
+import { Animator, Box, Scrollable, Sprite } from "@app/components";
 
 import Vector from "@app/util/Vector";
-import rInfo from "@app/util/renderinfo";
-import {lerp, clamp} from "@app/util/Interp";
+import { lerp, clamp } from "@app/util/Interp";
 import Game from "@app/stuff";
 import gameEvents from "@app/util/events";
 
 /**
- * 
- * @param {Game} game 
- * @param {CanvasRenderingContext2D} ctx 
+ *
+ * @param {Game} game
+ * @param {CanvasRenderingContext2D} ctx
  */
 export const render = (game) => {
-  const {world, ctx} = game;
-  const {space} = rInfo;
-  const oldFill = ctx.fillStyle;
-  world.view(Body).each((_ent, body) => {
-    const {x, y} = body.position;
-    // render everything scaled by space from rInfo
-    // + offset box so it appears in the middle of one such space
-    const cx = x * space + 15;
-    const cy = y * space + 15;
-    ctx.strokeRect(cx, cy, 10, 10);
-    ctx.fillStyle = body.color;
-    ctx.fillRect(cx+1, cy+1, 9, 9);
-  });
-  // restore fill
-  ctx.fillStyle = oldFill;
+  const { world, ctx } = game;
+  world.view(Box, Sprite).each((_ent, box, sprite) => {
+    const { x: dx, y: dy, w: dw, h: dh } = box;
+    const frame = sprite.currentFrame;
+    const { x: sx, y: sy, w: sw, h: sh } = sprite.getCurrentAnimation()[frame];
 
-  // display a grid based on renderInfo space
-  // if the game needs no grid or scaling, this and any code involving rInfo can be removed
-  if (game.showGrid) {
-    const xw = 800 / space;
-    const yh = 600 / space;
-    for (let x = 0; x < xw; x++) {
-      for (let y = 0; y < yh; y++) {
-        ctx.strokeRect(x * space, y * space, space, space);
-      }
-    }
-  }
+    ctx.drawImage(sprite.ref, sx, sy, sw, sh, dx, dy, dw, dh);
+
+    // debug
+    // ctx.strokeRect(dx-2, dy-2, dw+4, dh+4);
+  });
 };
 
 /**
- * 
- * @param {Game} game 
- * @param {number} dt 
+ *
+ * @param {Game} game
+ * @param {number} dt
  */
 export const animate = (game, dt) => {
   const world = game.world;
-  let anyAnimating = false;
-  // collect active animator events so we can respond to 
-  // particular things finishing, like re-origin
-  let animEvents = new Set();
-  world.view(Body, Animator).each((_, body, animator) => {
-    if (!animator.shouldAnimate) {
+
+  world.view(Sprite).each((_, sprite) => {
+    // not animated
+    if (sprite.framerate < 0) {
       return;
     }
 
-    animEvents.add(animator.source);
-    
-    animator.progress = clamp(animator.progress + dt, 0, animator.goal);
-    const percent = clamp(animator.progress / animator.goal, 0, 1);
-    const value = new Vector(
-      lerp(animator.start.x, animator.target.x, percent),
-      lerp(animator.start.y, animator.target.y, percent)
-    );
+    const currentAnim = sprite.getCurrentAnimation();
+    sprite.frameAcc = clamp(sprite.frameAcc + dt, 0, sprite.framerate);
+    if (sprite.frameAcc === sprite.framerate) {
+      // reached end of frame duration, increment frame
+      sprite.frameAcc = 0;
+      sprite.currentFrame++;
+      // loop frame back to 0
+      if (sprite.currentFrame >= currentAnim.length) {
+        sprite.currentFrame = 0;
+      }
+    }
+  });
+};
 
-    body.position = value;
+/**
+ *
+ * @param {Game} game
+ * @param {number} dt
+ */
+export const scroll = (game, dt) => {
+  const { world } = game;
 
-    animator.shouldAnimate = percent !== 1;
-    if (animator.shouldAnimate) {
-      anyAnimating = true;
-    } else {
-      // done animating
-      animator.source = "";
-      animator.progress = 0;
+  let furthestX = 0;
+  let createNewGroundTile = false;
+  world.view(Scrollable, Box).each((_ent, scrollable, box) => {
+    box.x -= dt * scrollable.speed;
+    if (box.x > furthestX) {
+      furthestX = box.x;
+    }
+
+    // remove scrollables that go off screen
+    if (box.x <= -box.w) {
+      world.destroy(_ent);
+      if (scrollable.type == "ground") {
+        createNewGroundTile = true;
+      }
     }
   });
 
-  if (game.animating && !anyAnimating) {
-    game.animating = false;
-    gameEvents.emit("animatorFinish", Array.from(animEvents));
+  if (createNewGroundTile) {
+    world.create(
+      new Box(furthestX + 32, 600 - 64, 32, 32),
+      new Sprite(game.resources[2], -1, game.spriteData["env"], "grass_2"),
+      new Scrollable(16, false, "ground")
+    );
+    world.create(
+      new Box(furthestX + 32, 600 - 32, 32, 32),
+      new Sprite(game.resources[2], -1, game.spriteData["env"], "dirt_2"),
+      new Scrollable(16, false, "ground")
+    );
   }
 };
-

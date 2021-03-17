@@ -5,11 +5,15 @@ import Game from "@app/stuff";
 const dom = {
   pause: document.getElementById("pause"),
   canvas: document.querySelector("canvas"),
-  step: document.getElementById("step")
+  step: document.getElementById("step"),
+  imgChar: document.getElementById("adventurer"),
+  imgFood: document.getElementById("food"),
+  imgEnv: document.getElementById("environment"),
+  stats: document.getElementById("stats")
 };
 
 // init game
-const game = new Game(dom.canvas);
+const game = new Game(dom.canvas, [dom.imgChar, dom.imgFood, dom.imgEnv]);
 
 // bind controls
 
