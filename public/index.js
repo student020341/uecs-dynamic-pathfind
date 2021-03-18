@@ -9,11 +9,12 @@ const dom = {
   imgChar: document.getElementById("adventurer"),
   imgFood: document.getElementById("food"),
   imgEnv: document.getElementById("environment"),
-  stats: document.getElementById("stats")
+  stats: document.getElementById("stats"),
+  imgTrees: document.getElementById("trees")
 };
 
 // init game
-const game = new Game(dom.canvas, [dom.imgChar, dom.imgFood, dom.imgEnv]);
+const game = new Game(dom.canvas, [dom.imgChar, dom.imgFood, dom.imgEnv, dom.imgTrees], dom.stats);
 
 // bind controls
 

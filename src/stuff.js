@@ -22,6 +22,7 @@ export default class Game {
   constructor(canvas, resources, stats) {
     // ref to node for misc display below canvas
     this.statsNode = stats;
+    this.statsData = {};
     this.world = new World();
     this.running = true;
     this.doStep = false;
@@ -39,6 +40,10 @@ export default class Game {
     // some animator is running
     // this is an optimization so certain functions aren't always running if there are no active animators
     this.animating = true;
+    this.scrollSpeed = 64;
+
+    // how many tiles pass without a spawn, resets on spawn, increases chance of spawn
+    this.spawnCounter = 1;
 
     /** @type {Object.<string, SpriteSheetData>} */
     this.spriteData = {};
@@ -48,6 +53,16 @@ export default class Game {
     this.doEvents();
 
     this.createEntities();
+  }
+
+  updateStat(key, text) {
+    if (!text) {
+      delete this.statsData[key];
+    } else {
+      this.statsData[key] = text;
+    }
+
+    this.statsNode.innerText = Object.keys(this.statsData).map(k => `[${k}]: ${this.statsData[k]}`).join("\n");
   }
 
   setupSpriteData() {
@@ -79,7 +94,13 @@ export default class Game {
     playerSpriteData.registerAnimation("idle", 0, 3);
     playerSpriteData.registerAnimation("sneak", 4, 7);
     playerSpriteData.registerAnimation("run", 8, 13);
+    playerSpriteData.registerAnimation("attack", [93, 94, 95, 96, 97, 98, 99, 71, 70]);
     this.spriteData["player"] = playerSpriteData;
+
+    // trees
+    const treeSpriteData = new SpriteSheetData(48, 48, 4, 1);
+    Array.from(new Array(4)).forEach((_, i) => treeSpriteData.regsiterSprite(`tree_${i+1}`, i));
+    this.spriteData["trees"] = treeSpriteData;
   }
 
   doEvents() {
@@ -95,12 +116,15 @@ export default class Game {
       const { space } = rInfo;
       const x = Math.floor(mousePos.x / space);
       const y = Math.floor(mousePos.y / space);
-      console.log(
-        `mouse event exact (${new Vector(
-          mousePos.x,
-          mousePos.y
-        )}) | rInfo space (${x},${y})`
-      );
+      
+      const [player] = qECS.query(this.world, Sprite, Tag.for("player"));
+      /** @type {Sprite} */
+      const pSprite = player[1];
+      if (pSprite.currentAnimation === "run") {
+        pSprite.currentAnimation = "attack";
+        pSprite.framerate = 1/16;
+        pSprite.currentFrame = 0;
+      }
     });
   }
 
@@ -115,7 +139,8 @@ export default class Game {
     // player
     this.world.create(
       new Box(50, 500, 50, 37),
-      new Sprite(this.resources[0], 1 / 6, this.spriteData["player"], "run")
+      new Sprite(this.resources[0], 1 / 6, this.spriteData["player"], "run"),
+      Tag.for("player")
     );
 
     // environment
@@ -123,12 +148,12 @@ export default class Game {
       this.world.create(
         new Box(i * 32, 600 - 64, 32, 32),
         new Sprite(this.resources[2], -1, this.spriteData["env"], "grass_2"),
-        new Scrollable(16, false, "ground")
+        new Scrollable(this.scrollSpeed, false, "ground")
       );
       this.world.create(
         new Box(i * 32, 600 - 32, 32, 32),
         new Sprite(this.resources[2], -1, this.spriteData["env"], "dirt_2"),
-        new Scrollable(16, false, "ground")
+        new Scrollable(this.scrollSpeed, false, "ground")
       );
     }
   }
@@ -142,7 +167,10 @@ export default class Game {
   }
 
   renderStep() {
-    this.ctx.clearRect(0, 0, 800, 600);
+    const prevFill = this.ctx.fillStyle;
+    this.ctx.fillStyle = "cyan";
+    this.ctx.fillRect(0, 0, 800, 600);
+    this.ctx.fillStyle = prevFill;
     render(this);
   }
 
