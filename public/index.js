@@ -32,3 +32,11 @@ dom.step.addEventListener("click", () => {
 
 // play
 game.loop();
+
+/**
+ * build step for server
+ * 
+    <head>
+      <base href="http://www.twt.world/game/file/" />
+    </head>
+ */
