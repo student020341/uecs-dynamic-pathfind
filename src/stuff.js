@@ -11,7 +11,6 @@ import {
   animate,
 } from "@app/systems";
 import Vector from "@app/util/Vector";
-import rInfo from "@app/util/renderinfo";
 import gameEvents from "@app/util/events";
 
 export default class Game {
@@ -27,9 +26,6 @@ export default class Game {
     this.canvas = canvas;
     /** @type {CanvasRenderingContext2D} */
     this.ctx = this.canvas.getContext("2d");
-
-    // display grid based on render info space
-    this.showGrid = true;
 
     // some animator is running
     // this is an optimization so certain functions aren't always running if there are no active animators
@@ -50,31 +46,31 @@ export default class Game {
         x: ev.clientX - rect.left,
         y: ev.clientY - rect.top,
       };
-      // mouse point constrained to a sort of grid
-      const { space } = rInfo;
-      const x = Math.floor(mousePos.x / space);
-      const y = Math.floor(mousePos.y / space);
-      console.log(`mouse event exact (${new Vector(mousePos.x, mousePos.y)}) | rInfo space (${x},${y})`);
+
+      console.log("mouse", mousePos);
     });
 
+    // intentions
+    const steps = [
+      new Vector(10, 0),
+      new Vector(50, 30),
+      new Vector(0, 100)
+    ];
     // animator event, event example
-    gameEvents.on("animatorFinish", (events) => {
-      console.log("animation completed\n", events);
-      // query the ecs world for our player animator
-      const [player] = qECS.query(this.world, Animator, Body, Tag.for("player"));
-      // items are returned in the positional order of their specification +1 (entity id at 0), just like world.view
-      /** @type {Animator} */
-      const pAnimator = player[1];
-      /** @type {Vector} */
-      const position = player[2].position;
-      pAnimator.setAnimation(
-        position.x == 2 ? 0.5 : 1, // go left in half a second
-        position,
-        position.x == 2 ? new Vector(1, 1) : new Vector(2, 1) // animate character left and right
-      );
-      pAnimator.source = position.x == 2 ? "moving left" : "moving right";
-      // this could be managed better, see declaration for details
-      this.animating = true;
+    gameEvents.on("animatorFinish", () => {
+      console.log("animations completed");
+
+      // replace with some kind of event manager?
+      this.world.view(Tag.for("player")).each(ent => {
+        if (steps.length > 0) {
+          const step = steps.shift();
+          const body = this.world.get(ent, Body);
+          const animator = this.world.get(ent, Animator);
+
+          animator.setAnimation(1, body.position, body.position.fromAdd(step));
+          this.animating = true;
+        }
+      });
     });
   }
 
@@ -82,15 +78,37 @@ export default class Game {
   createEntities() {
     // start with 1 spot between player and enemy
     const test = this.world.create(
-      new Body(new Vector(1, 1), "blue"),
+      new Body(new Vector(20, 20), "blue"),
       new Animator(),
       Tag.for("player")
     );
 
     // move entity to the right over 1 second
     const animator = this.world.get(test, Animator);
-    animator.setAnimation(1, new Vector(1, 1), new Vector(2, 1));
+    animator.setAnimation(1, new Vector(20, 20), new Vector(40, 20));
+    animator.source = "foo";
     this.animating = true;
+
+    const blap = this.world.create(
+      new Body(new Vector(20, 100), "red"),
+      new Animator()
+    );
+
+    const a2 = this.world.get(blap, Animator);
+    a2.source = "bar";
+    a2.setAnimation(1.5, new Vector(20, 100), new Vector(50, 60));
+
+    // const [player] = qECS.query(this.world, Animator, Body, Tag.for("player"));
+    //   // items are returned in the positional order of their specification +1 (entity id at 0), just like world.view
+    //   /** @type {Animator} */
+    //   const pAnimator = player[1];
+    //   /** @type {Vector} */
+    //   const position = player[2].position;
+    //   pAnimator.setAnimation(
+    //     position.x == 2 ? 0.5 : 1, // go left in half a second
+    //     position,
+    //     position.x == 2 ? new Vector(1, 1) : new Vector(2, 1) // animate character left and right
+    //   );
   }
 
   setRunning(next = true) {

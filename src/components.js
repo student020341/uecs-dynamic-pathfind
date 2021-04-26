@@ -16,9 +16,9 @@ export class Body {
 // mutate body position over time
 export class Animator {
   /** @type {string} a possible source of animation, ex: game did something (re-origin), player did something (moved) */
-  source = "player";
+  source = "something";
   /** @type {number} seconds for change to occur over */
-  goal = 0.5;
+  goal = 1;
   /** @type {number} accumulated time */
   progress = 0;
   /** @type {boolean} whether  */
@@ -27,6 +27,9 @@ export class Animator {
   target = new Vector(0, 0);
   /** @type {Vector} original position */
   start = new Vector(0, 0);
+
+  /** @type {VoidFunction} function to run when animator completes */
+  onFinish = null;
 
   /**
    * 
